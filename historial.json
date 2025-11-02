@@ -1,0 +1,40 @@
+[
+    {
+        "id": "1",
+        "nombre": "CHUCHU",
+        "stock": "1",
+        "precio": "20020",
+        "sku": "A1"
+    },
+    {
+        "id": "2",
+        "nombre": "AGUS",
+        "stock": "66",
+        "precio": "4000",
+        "sku": "A2"
+    },
+    {
+        "id": "1",
+        "nombre": "AMAZING SPIDER-MAN #1",
+        "stock": "50",
+        "precio": "7",
+        "sku": "C001",
+        "categoria": "COMICS/MARVEL/SPIDER-MAN"
+    },
+    {
+        "id": "7",
+        "nombre": "ONE PIECE VOL 100",
+        "stock": "80",
+        "precio": "10",
+        "sku": "M003",
+        "categoria": "MANGA/SHONEN/ONE PIECE"
+    },
+    {
+        "id": "5",
+        "nombre": "FUNKO POP! IRON MAN",
+        "stock": "60",
+        "precio": "12",
+        "sku": "F001",
+        "categoria": "MERCHANDISING/FIGURAS/FUNKO"
+    }
+]

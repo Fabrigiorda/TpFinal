@@ -1,0 +1,20 @@
+[
+    [
+        {
+            "id": "1",
+            "nombre": "CHUCHU",
+            "stock": "1",
+            "precio": "20020",
+            "sku": "A1"
+        }
+    ],
+    [
+        {
+            "id": "2",
+            "nombre": "AGUS",
+            "stock": "66",
+            "precio": "4000",
+            "sku": "A2"
+        }
+    ]
+]
