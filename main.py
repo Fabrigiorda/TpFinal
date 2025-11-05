@@ -1,69 +1,84 @@
+# Importación de librerías necesarias para manejo de archivos, tiempo, CSV y JSON
 import os, time, csv, json
 
+# Variables globales para almacenar el estado del programa
 productos = {}
 lista_pedidos = []
 historial_busqueda = []
 
+# Archivo que guarda el historial de búsquedas persistente
 archivo_historial = 'historial.json'
 try:
     
     if os.path.exists(archivo_historial) and os.path.getsize(archivo_historial) > 0:
         with open(archivo_historial, 'r', encoding='utf-8') as f:
+            # Carga el historial desde JSON y valida que sea una lista
             historial_busqueda = json.load(f)
             
             if not isinstance(historial_busqueda, list):
                 historial_busqueda = []
     else:
-        
+        # Si no existe el archivo, inicializa un historial vacío
         historial_busqueda = []
 except (json.JSONDecodeError, FileNotFoundError):
     
     historial_busqueda = []
 
-class TreeNode:
-    def __init__(self, name):
-        self.name = name
-        self.children = {}
-        self.products = []
+# Estructura de árbol para organizar productos por categorías
+class NodoArbol:
+    def __init__(self, nombre):
+        self.nombre = nombre
+        self.hijos = {}
+        self.productos = []
 
-category_root = TreeNode("Categorías")
+# Nodo raíz del árbol de categorías
+raiz_categorias = NodoArbol("Categorías")
 
-def load_category_tree(nombre_archivo='basedatos.csv'):
-    global category_root
-    category_root = TreeNode("Categorías")
+# Construye el árbol de categorías desde el archivo CSV
+def cargar_arbol_categorias(nombre_archivo='basedatos.csv'):
+    global raiz_categorias
+    raiz_categorias = NodoArbol("Categorías")
     try:
         with open(nombre_archivo, mode='r', encoding='utf-8', newline='') as f:
-            reader = csv.DictReader(f)
-            if 'categoria' not in reader.fieldnames:
+            # Verifica si existe la columna de categoría en el CSV
+            lector = csv.DictReader(f)
+            if 'categoria' not in lector.fieldnames:
                 return
             
-            for fila in reader:
-                categoria_path = fila.get('categoria', '').strip()
-                if not categoria_path:
-                    categoria_path = "SIN CATEGORIA"
+            # Procesa cada producto y lo asigna a su categoría
+            for fila in lector:
+                # Normaliza las categorías vacías
+                ruta_categoria = fila.get('categoria', '').strip()
+                if not ruta_categoria:
+                    ruta_categoria = "SIN CATEGORIA"
 
-                parts = categoria_path.split('/')
-                current_node = category_root
+                # Divide la ruta de categorías y crea los nodos necesarios
+                partes = ruta_categoria.split('/')
+                nodo_actual = raiz_categorias
                 
-                for part in parts:
-                    if part not in current_node.children:
-                        current_node.children[part] = TreeNode(part)
-                    current_node = current_node.children[part]
+                # Construye la rama del árbol para esta categoría
+                for parte in partes:
+                    if parte not in nodo_actual.hijos:
+                        nodo_actual.hijos[parte] = NodoArbol(parte)
+                    nodo_actual = nodo_actual.hijos[parte]
                 
-                current_node.products.append(fila)
+                # Almacena el producto en su categoría correspondiente
+                nodo_actual.productos.append(fila)
                 
     except FileNotFoundError:
         pass
     except Exception:
         pass
 
-def get_all_products_recursive(node):
-    products = []
-    products.extend(node.products)
-    for child in node.children.values():
-        products.extend(get_all_products_recursive(child))
-    return products
+# Recolecta recursivamente todos los productos de un nodo y sus subárboles
+def obtener_productos_recursivo(nodo):
+    lista_productos = []
+    lista_productos.extend(nodo.productos)
+    for hijo in nodo.hijos.values():
+        lista_productos.extend(obtener_productos_recursivo(hijo))
+    return lista_productos
 
+# Menú principal con las operaciones fundamentales del sistema
 def menu():
     os.system("cls")
     print("Menu:")
@@ -82,6 +97,7 @@ def menu():
         os.system("cls")
         menu()
 
+    # Chequeo de que respuesta fue la elegida por el usuario
     if respuesta == 1:
         gestion_productos()
     elif respuesta == 2:
@@ -97,6 +113,7 @@ def menu():
         time.sleep(1)
         menu()
 
+# Gestión CRUD de productos en el inventario
 def gestion_productos():
     os.system("cls")
     print("1. Agregar producto")
@@ -129,6 +146,7 @@ def gestion_productos():
         time.sleep(1)
         gestion_productos()
 
+# Agrega un nuevo producto al archivo CSV con validación de duplicados
 def agregar_producto():
     os.system("cls")
     nuevo = []
@@ -140,6 +158,7 @@ def agregar_producto():
     ultimo_id = 0
 
     try:
+        # Lee el archivo CSV existente para obtener el último ID
         with open(archivo, mode='r', newline='', encoding='utf-8') as archivo_csv:
             buscar = csv.DictReader(archivo_csv)
             for fila in buscar:
@@ -152,9 +171,10 @@ def agregar_producto():
     except Exception:
         pass
 
-
+    # Asignacion automatica de ID
     nuevo_id = ultimo_id + 1
 
+    # Solicita y valida que el nombre no exista
     nuevo_nombre = input("Ingrese nombre del producto: ").upper()
     while nuevo_nombre in lista_nombres:
         nuevo_nombre = input("Ese producto ya existe, ingrese uno nuevo: ").upper()
@@ -176,20 +196,21 @@ def agregar_producto():
     nuevo.append(sku)
     nuevo.append(categoria)
     
-    file_exists = os.path.isfile(archivo)
+    archivo_existe = os.path.isfile(archivo)
     
-    fieldnames = ["id", "nombre", "stock", "precio", "sku", "categoria"]
+    nombres_columnas = ["id", "nombre", "stock", "precio", "sku", "categoria"]
 
     with open(archivo, 'a', newline='', encoding='utf-8') as archivo_csv:
         escritor_csv = csv.writer(archivo_csv)
-        if not file_exists or os.path.getsize(archivo) == 0:
-             escritor_csv.writerow(fieldnames)
+        if not archivo_existe or os.path.getsize(archivo) == 0:
+             escritor_csv.writerow(nombres_columnas)
         escritor_csv.writerow(nuevo)
 
+# Actualiza la información de un producto existente usando un archivo temporal
 def actualizar_producto():
     nombre_archivo = 'basedatos.csv'
     archivo_temporal = 'temp_basedatos.csv'
-    fieldnames = ["id", "nombre", "stock", "precio", "sku", "categoria"]
+    nombres_columnas = ["id", "nombre", "stock", "precio", "sku", "categoria"]
 
     os.system("cls")
     print("Modificar Producto por SKU")
@@ -202,26 +223,26 @@ def actualizar_producto():
         with open(nombre_archivo, 'r', newline='', encoding='utf-8') as archivo_lectura:
             lector = csv.reader(archivo_lectura)
 
+            # Preserva la cabecera del CSV y añade columna de categoría si falta
             cabecera = next(lector)
-            # Asegurarse que la cabecera tenga 'categoria'
             if 'categoria' not in cabecera:
                 cabecera.append('categoria')
-                
             datos_actualizados.append(cabecera)
             
-            sku_index = 4
-            categoria_index = 5
+            indice_sku = 4
+            indice_categoria = 5
 
             for fila in lector:
-                if len(fila) <= sku_index:
+                if len(fila) <= indice_sku:
                     datos_actualizados.append(fila)
                     continue
                 
-                # Asegurar que la fila tenga espacio para la categoria
-                while len(fila) <= categoria_index:
+                
+                while len(fila) <= indice_categoria:
                     fila.append("")
 
-                if fila[sku_index].upper() == sku_a_buscar.upper():
+                # Inputs para que el usuario haga las modificaciones correspondientes/necesarias para el producto
+                if fila[indice_sku].upper() == sku_a_buscar.upper():
                     producto_encontrado = True
                     print(f"\nProducto encontrado: ID={fila[0]}, Nombre={fila[1]}, Stock={fila[2]}, Precio={fila[3]}, SKU={fila[4]}, Categoria={fila[5]}")
                     print("Por favor, ingrese los nuevos datos.")
@@ -256,9 +277,9 @@ def actualizar_producto():
     except Exception as e:
         print(f"Ocurrió un error inesperado: {e}")
 
+# Menú de gestión de pedidos (crear y procesar)
 def pedidos():
     
-
     os.system("cls")
     print("Gestión de Pedidos")
     print("1. Hacer pedido")
@@ -284,6 +305,7 @@ def pedidos():
         time.sleep(1)
         pedidos()
         
+# Crea un nuevo pedido con validación de stock y cálculo de totales
 def agregar_pedido():
     import json
     os.system("cls")
@@ -302,9 +324,11 @@ def agregar_pedido():
         print(f"Creando pedido para: {nombre_cliente}")
         
         total_pedido_actual = 0
+        # Valida si hay productos en el pedido actual
         if not pedido_actual:
             print("El pedido está vacío.")
         else:
+            # Muestra resumen del pedido con subtotales
             print("Productos en este pedido:")
             for i, item in enumerate(pedido_actual, 1):
                 subtotal_item = item['cantidad'] * item['precio_unitario']
@@ -358,8 +382,8 @@ def agregar_pedido():
                     break
                 
                 if opcion_mod == 'E':
-                    confirm_del = input("¿Seguro que desea vaciar el pedido? (S/N): ").upper()
-                    if confirm_del == 'S':
+                    confirmar_borrado = input("¿Seguro que desea vaciar el pedido? (S/N): ").upper()
+                    if confirmar_borrado == 'S':
                         pedido_actual = []
                         print("Pedido vaciado.")
                         time.sleep(1)
@@ -368,29 +392,30 @@ def agregar_pedido():
                         continue
 
                 try:
-                    index_mod = int(opcion_mod) - 1
-                    if 0 <= index_mod < len(pedido_actual):
-                        item_a_modificar = pedido_actual[index_mod]
+                    indice_modificar = int(opcion_mod) - 1
+                    if 0 <= indice_modificar < len(pedido_actual):
+                        item_a_modificar = pedido_actual[indice_modificar]
                         print(f"Modificando: {item_a_modificar['producto']}")
                         print("[1] Modificar cantidad")
                         print("[2] Eliminar producto")
                         print("[0] Volver")
-                        op_item = input("Opción: ").strip()
+                        opcion_item = input("Opción: ").strip()
 
-                        if op_item == '0':
+                        if opcion_item == '0':
                             continue
                         
-                        elif op_item == '2':
-                            confirm_del_item = input(f"¿Eliminar {item_a_modificar['producto']}? (S/N): ").upper()
-                            if confirm_del_item == 'S':
-                                pedido_actual.pop(index_mod)
+                        elif opcion_item == '2':
+                            confirmar_borrado_item = input(f"¿Eliminar {item_a_modificar['producto']}? (S/N): ").upper()
+                            if confirmar_borrado_item == 'S':
+                                pedido_actual.pop(indice_modificar)
                                 print("Producto eliminado.")
                                 time.sleep(1)
+                    
                         
-                        elif op_item == '1':
+                        elif opcion_item == '1':
                             try:
-                                nueva_cantidad_input = input(f"Ingrese nueva cantidad (actual: {item_a_modificar['cantidad']}): ")
-                                nueva_cantidad = int(nueva_cantidad_input)
+                                nueva_cantidad_texto = input(f"Ingrese nueva cantidad (actual: {item_a_modificar['cantidad']}): ")
+                                nueva_cantidad = int(nueva_cantidad_texto)
                                 
                                 if nueva_cantidad <= 0:
                                     print("La cantidad debe ser positiva. Para eliminar, use la opción 2.")
@@ -400,8 +425,8 @@ def agregar_pedido():
                                 stock_disponible = 0
                                 try:
                                     with open(nombre_archivo, mode='r', encoding='utf-8', newline='') as f:
-                                        reader = csv.DictReader(f)
-                                        for fila in reader:
+                                        lector = csv.DictReader(f)
+                                        for fila in lector:
                                             if fila['nombre'].upper() == item_a_modificar['producto']:
                                                 stock_disponible = int(fila.get('stock', 0))
                                                 break
@@ -429,12 +454,12 @@ def agregar_pedido():
                     time.sleep(1)
 
         elif opcion_menu == '1':
-            nombre_producto_input = input("Ingrese nombre del producto (o 'V' para volver): ").upper()
+            nombre_producto_texto = input("Ingrese nombre del producto (o 'V' para volver): ").upper()
 
-            if nombre_producto_input == 'V':
+            if nombre_producto_texto == 'V':
                 continue
             
-            if not nombre_producto_input:
+            if not nombre_producto_texto:
                 print("El nombre del producto no puede estar vacío.")
                 time.sleep(1)
                 continue
@@ -442,11 +467,12 @@ def agregar_pedido():
             producto_encontrado = False
             datos_producto = {}
 
+            
             try:
                 with open(nombre_archivo, mode='r', encoding='utf-8', newline='') as f:
-                    reader = csv.DictReader(f)
-                    for fila in reader:
-                        if fila['nombre'].upper() == nombre_producto_input:
+                    lector = csv.DictReader(f)
+                    for fila in lector:
+                        if fila['nombre'].upper() == nombre_producto_texto:
                             datos_producto = {
                                 "nombre": fila['nombre'].upper(),
                                 "stock": int(fila.get('stock', 0)),
@@ -465,7 +491,7 @@ def agregar_pedido():
                 continue
 
             if not producto_encontrado:
-                print(f"Producto '{nombre_producto_input}' inexistente.")
+                print(f"Producto '{nombre_producto_texto}' inexistente.")
                 time.sleep(1.5)
                 continue
 
@@ -479,18 +505,18 @@ def agregar_pedido():
             print(f"Precio unitario: ${datos_producto['precio']:.2f}")
             print(f"Stock disponible: {datos_producto['stock']}")
             
-            cantidad_input = input("Ingrese la cantidad (o 'V' [Volver], 'C' [Cancelar Pedido]): ").upper()
+            cantidad_texto = input("Ingrese la cantidad (o 'V' [Volver], 'C' [Cancelar Pedido]): ").upper()
 
-            if cantidad_input == 'V':
+            if cantidad_texto == 'V':
                 continue
-            if cantidad_input == 'C':
+            if cantidad_texto == 'C':
                 print("Pedido cancelado.")
                 time.sleep(1)
                 pedidos()
                 return
 
             try:
-                cantidad_deseada = int(cantidad_input)
+                cantidad_deseada = int(cantidad_texto)
                 if cantidad_deseada <= 0:
                     print("La cantidad debe ser un número positivo.")
                     time.sleep(1)
@@ -541,29 +567,29 @@ def agregar_pedido():
         "total": total_compra
     }
     
-    historial_archivo = "pedidos.json"
-    historial_pedidos = []
+    archivo_pedidos_json = "pedidos.json"
+    lista_total_pedidos = []
     
     try:
-        if os.path.exists(historial_archivo) and os.path.getsize(historial_archivo) > 0:
-            with open(historial_archivo, 'r', encoding='utf-8') as f:
-                historial_pedidos = json.load(f)
-                if not isinstance(historial_pedidos, list):
-                    historial_pedidos = []
+        if os.path.exists(archivo_pedidos_json) and os.path.getsize(archivo_pedidos_json) > 0:
+            with open(archivo_pedidos_json, 'r', encoding='utf-8') as f:
+                lista_total_pedidos = json.load(f)
+                if not isinstance(lista_total_pedidos, list):
+                    lista_total_pedidos = []
         else:
-            historial_pedidos = []
+            lista_total_pedidos = []
     except json.JSONDecodeError:
-        historial_pedidos = []
+        lista_total_pedidos = []
     except Exception:
-        historial_pedidos = [] 
+        lista_total_pedidos = [] 
 
-    historial_pedidos.append(nuevo_pedido_completo)
+    lista_total_pedidos.append(nuevo_pedido_completo)
 
     try:
-        with open(historial_archivo, 'w', encoding='utf-8') as f:
-            json.dump(historial_pedidos, f, ensure_ascii=False, indent=4)
+        with open(archivo_pedidos_json, 'w', encoding='utf-8') as f:
+            json.dump(lista_total_pedidos, f, ensure_ascii=False, indent=4)
     except Exception as e:
-        print(f"Error al guardar en {historial_archivo}: {e}")
+        print(f"Error al guardar en {archivo_pedidos_json}: {e}")
         time.sleep(2)
 
     os.system("cls")
@@ -580,19 +606,21 @@ def agregar_pedido():
     input("\nPresione Enter para volver al menú de pedidos...")
     pedidos()
 
+# Procesa el siguiente pedido en la cola (FIFO) y actualiza el inventario
 def procesar_pedido():
     os.system("cls")
-    archivo_pedidos = 'pedidos.json'
-    archivo_db = 'basedatos.csv'
+    archivo_pedidos_json = 'pedidos.json'
+    archivo_base_datos = 'basedatos.csv'
     
+    # Cargar la lista de pedidos desde el archivo JSON
     try:
-        if not os.path.exists(archivo_pedidos) or os.path.getsize(archivo_pedidos) == 0:
+        if not os.path.exists(archivo_pedidos_json) or os.path.getsize(archivo_pedidos_json) == 0:
             print("No hay pedidos para procesar.")
             time.sleep(2)
             pedidos()
             return
-
-        with open(archivo_pedidos, 'r', encoding='utf-8') as f:
+    
+        with open(archivo_pedidos_json, 'r', encoding='utf-8') as f:
             lista_pedidos = json.load(f)
             if not lista_pedidos:
                 print("No hay pedidos para procesar.")
@@ -600,16 +628,18 @@ def procesar_pedido():
                 pedidos()
                 return
 
+
     except (json.JSONDecodeError, FileNotFoundError):
         print("Error al leer la cola de pedidos. El archivo puede estar corrupto.")
         time.sleep(2)
         pedidos()
         return
 
+    
     print(f"Pedidos totales en cola: {len(lista_pedidos)}")
     
     primer_pedido = lista_pedidos[0] 
-    
+        
     print("\n--- Procesando Siguiente Pedido (FIFO) ---")
     print(f"Cliente: {primer_pedido['cliente']}")
     print(f"Total: ${primer_pedido['total']:.2f}")
@@ -620,20 +650,22 @@ def procesar_pedido():
     input("Presione Enter para confirmar el procesamiento...")
 
     inventario = {}
-    fieldnames = []
+    nombres_columnas = []
+    
+    # Cargar el inventario desde el archivo CSV
     try:
-        with open(archivo_db, mode='r', encoding='utf-8', newline='') as f:
-            reader = csv.DictReader(f)
-            fieldnames = reader.fieldnames
-            if not fieldnames:
-                 print(f"Error CRÍTICO: El archivo '{archivo_db}' está vacío o corrupto.")
-                 time.sleep(3)
-                 pedidos()
-                 return
-            for fila in reader:
+        with open(archivo_base_datos, mode='r', encoding='utf-8', newline='') as f:
+            lector = csv.DictReader(f)
+            nombres_columnas = lector.fieldnames
+            if not nombres_columnas:
+                print(f"Error CRÍTICO: El archivo '{archivo_base_datos}' está vacío o corrupto.")
+                time.sleep(3)
+                pedidos()
+                return
+            for fila in lector:
                 inventario[fila['sku']] = fila
     except FileNotFoundError:
-        print(f"Error CRÍTICO: No se encontró el archivo de base de datos '{archivo_db}'.")
+        print(f"Error CRÍTICO: No se encontró el archivo de base de datos '{archivo_base_datos}'.")
         time.sleep(3)
         pedidos()
         return
@@ -656,40 +688,44 @@ def procesar_pedido():
             break 
         
         try:
+            # Verifica el stock antes de procesar el pedido
             stock_actual = int(inventario[sku]['stock'])
         except (ValueError, TypeError):
             print(f"ERROR: Stock inválido para SKU {sku} en basedatos.csv.")
             stock_actual = 0
 
         
+        # Valida que haya suficiente stock para el pedido
         if cantidad_pedida > stock_actual:
             print(f"ERROR: Stock insuficiente para '{item['producto']}' (SKU: {sku}).")
             print(f"   Pedido: {cantidad_pedida} | Disponible: {stock_actual}")
             stock_suficiente = False
             break 
 
+    # Actualiza el inventario si hay suficiente stock
     if stock_suficiente:
         print("\nStock verificado. Actualizando inventario...")
         for item in items_a_procesar:
             sku = item['sku']
             cantidad_pedida = item['cantidad']
             
+            # Reduce el stock del producto
             stock_actual = int(inventario[sku]['stock'])
             nuevo_stock = stock_actual - cantidad_pedida
             inventario[sku]['stock'] = str(nuevo_stock)
         
         try:
-            with open(archivo_db, 'w', encoding='utf-8', newline='') as f:
-                writer = csv.DictWriter(f, fieldnames=fieldnames)
-                writer.writeheader()
-                writer.writerows(inventario.values())
+            with open(archivo_base_datos, 'w', encoding='utf-8', newline='') as f:
+                escritor = csv.DictWriter(f, fieldnames=nombres_columnas)
+                escritor.writeheader()
+                escritor.writerows(inventario.values())
         except Exception as e:
             print(f"Error CRÍTICO al guardar el inventario: {e}")
             time.sleep(3)
             pedidos()
             return
         
-        print("Inventario actualizado en 'basedatos.csv'.")
+        print(f"Inventario actualizado en 'basedatos.csv'.")
 
     else:
         print("\nEl pedido no puede ser procesado por falta de stock.")
@@ -698,7 +734,7 @@ def procesar_pedido():
     pedido_procesado = lista_pedidos.pop(0) 
     
     try:
-        with open(archivo_pedidos, 'w', encoding='utf-8') as f:
+        with open(archivo_pedidos_json, 'w', encoding='utf-8') as f:
             json.dump(lista_pedidos, f, ensure_ascii=False, indent=4)
     except Exception as e:
         print(f"Error CRÍTICO al actualizar la cola de pedidos: {e}")
@@ -722,6 +758,7 @@ def procesar_pedido():
 
 
 
+# Función para mostrar el historial de búsquedas
 def historial():
     os.system("cls") 
     print("Historial de busquedas:")
@@ -741,30 +778,31 @@ def historial():
     input("\nPresione Enter para volver al menú...")
     menu()
 
+# Permite navegar el árbol de categorías y ver productos
 def explorar():
-    load_category_tree()
-    current_node = category_root
-    path_stack = [category_root]
+    cargar_arbol_categorias()
+    nodo_actual = raiz_categorias
+    pila_ruta = [raiz_categorias]
 
     while True:
         os.system("cls")
-        current_path = " / ".join(n.name for n in path_stack)
-        print(f"Explorando: {current_path}\n")
+        ruta_actual_str = " / ".join(n.nombre for n in pila_ruta)
+        print(f"Explorando: {ruta_actual_str}\n")
 
         print("--- Subcategorías ---")
-        subcategories = list(current_node.children.keys())
-        if not subcategories:
+        subcategorias = list(nodo_actual.hijos.keys())
+        if not subcategorias:
             print("No hay subcategorías.")
         else:
-            for i, name in enumerate(subcategories, 1):
-                print(f"{i}. {name}")
+            for i, nombre in enumerate(subcategorias, 1):
+                print(f"{i}. {nombre}")
         
         print("\n--- Productos en esta y subcategorías ---")
-        all_products = get_all_products_recursive(current_node)
-        if not all_products:
+        todos_los_productos = obtener_productos_recursivo(nodo_actual)
+        if not todos_los_productos:
             print("No hay productos.")
         else:
-            for prod in all_products:
+            for prod in todos_los_productos:
                 print(f"- {prod['nombre']} (SKU: {prod['sku']}, Stock: {prod['stock']})")
 
         print("\n" + "-"*30)
@@ -772,25 +810,25 @@ def explorar():
         print("Ingrese '..' para subir un nivel.")
         print("Ingrese '0' para volver al menú principal.")
         
-        choice = input("Opción: ").strip().lower()
+        opcion = input("Opción: ").strip().lower()
 
-        if choice == '0':
+        if opcion == '0':
             menu()
             return
-        elif choice == '..':
-            if len(path_stack) > 1:
-                path_stack.pop()
-                current_node = path_stack[-1]
+        elif opcion == '..':
+            if len(pila_ruta) > 1:
+                pila_ruta.pop()
+                nodo_actual = pila_ruta[-1]
             else:
                 print("Ya estás en la raíz.")
                 time.sleep(1)
         else:
             try:
-                choice_index = int(choice) - 1
-                if 0 <= choice_index < len(subcategories):
-                    chosen_category_name = subcategories[choice_index]
-                    current_node = current_node.children[chosen_category_name]
-                    path_stack.append(current_node)
+                indice_opcion = int(opcion) - 1
+                if 0 <= indice_opcion < len(subcategorias):
+                    nombre_categoria_elegida = subcategorias[indice_opcion]
+                    nodo_actual = nodo_actual.hijos[nombre_categoria_elegida]
+                    pila_ruta.append(nodo_actual)
                 else:
                     print("Número fuera de rango.")
                     time.sleep(1)
@@ -798,57 +836,70 @@ def explorar():
                 print("Opción no válida.")
                 time.sleep(1)
 
-class SimpleHashMap:
-    def __init__(self, size=1000):
-        self.size = size
-        self.buckets = [[] for _ in range(size)]
+# Implementación de tabla hash para búsquedas eficientes por SKU
+class TablaHashSimple:
 
-    def hash_function(self, key):
-        return sum(ord(char) for char in str(key)) % self.size
+    # Inicializa la tabla hash con un tamaño predeterminado
+    def __init__(self, tamano=1000):
+        self.tamano = tamano
+        self.cubetas = [[] for _ in range(tamano)]
 
-    def insert(self, key, value_data):
-        index = self.hash_function(key)
-        bucket = self.buckets[index]
+    # Calcula el índice de la cubeta usando los valores ASCII de la clave
+    def funcion_hash(self, clave):
+        # Calcula un índice basado en la suma de valores ASCII de los caracteres
+        return sum(ord(caracter) for caracter in str(clave)) % self.tamano
+
+    # Inserta o actualiza un valor en la tabla hash
+    def insertar(self, clave, valor_datos):
+        # Obtiene la cubeta correspondiente a la clave
+        indice = self.funcion_hash(clave)
+        cubeta = self.cubetas[indice]
         
-        for i, (existing_key, _) in enumerate(bucket):
-            if existing_key == key:
-                bucket[i] = (key, value_data)
+        # Actualiza el valor si la clave ya existe
+        for i, (clave_existente, _) in enumerate(cubeta):
+            if clave_existente == clave:
+                cubeta[i] = (clave, valor_datos)
                 return
         
-        bucket.append((key, value_data))
+        # Agrega nueva entrada si la clave no existe
+        cubeta.append((clave, valor_datos))
 
-    def get(self, key):
-        index = self.hash_function(key)
-        bucket = self.buckets[index]
+    # Recupera un valor de la tabla hash por su clave
+    def obtener(self, clave):
+        indice = self.funcion_hash(clave)
+        cubeta = self.cubetas[indice]
         
-        for existing_key, value_data in bucket:
-            if existing_key == key:
-                return value_data 
+        for clave_existente, valor_datos in cubeta:
+            if clave_existente == clave:
+                return valor_datos 
         return None
 
+# Busca productos por SKU usando la tabla hash y guarda en historial
 def buscar_producto_con_hash(nombre_archivo='basedatos.csv', sku_columna='sku'):
     os.system("cls")
-    mapa_productos = SimpleHashMap()
+    mapa_productos = TablaHashSimple()
     
+    # Cargar productos en la tabla hash
     try:
         with open(nombre_archivo, mode='r', encoding='utf-8', newline='') as f:
-            reader = csv.DictReader(f)
+            lector = csv.DictReader(f)
             
-            fieldnames = reader.fieldnames or []
-            if not fieldnames:
+            nombres_columnas = lector.fieldnames or []
+            if not nombres_columnas:
                 print(f"Error: El archivo '{nombre_archivo}' está vacío o no tiene cabecera.")
                 time.sleep(1)
                 return
             
-            if sku_columna not in fieldnames:
+            if sku_columna not in nombres_columnas:
                 print(f"Error: La columna '{sku_columna}' no se encontró en '{nombre_archivo}'.")
-                print(f"Columnas disponibles: {', '.join(fieldnames)}")
+                print(f"Columnas disponibles: {', '.join(nombres_columnas)}")
                 return
-            
-            for fila in reader:
-                sku_key = fila.get(sku_columna, "").strip()
-                if sku_key:
-                    mapa_productos.insert(sku_key, fila)
+
+            # Se desplaza a traves de las filas para insertar en la tabla hash    
+            for fila in lector:
+                clave_sku = fila.get(sku_columna, "").strip()
+                if clave_sku:
+                    mapa_productos.insertar(clave_sku, fila)
 
     except FileNotFoundError:
         print(f"Error: No se pudo encontrar el archivo '{nombre_archivo}'.")
@@ -866,7 +917,7 @@ def buscar_producto_con_hash(nombre_archivo='basedatos.csv', sku_columna='sku'):
         gestion_productos()
         return
 
-    datos_producto = mapa_productos.get(sku_a_buscar.strip())
+    datos_producto = mapa_productos.obtener(sku_a_buscar.strip())
 
     if datos_producto:
         print("\nProducto Encontrado:")
@@ -880,13 +931,14 @@ def buscar_producto_con_hash(nombre_archivo='basedatos.csv', sku_columna='sku'):
             historial_busqueda.pop(0)
         
 
-        
+        # Guardar el historial actualizado en el archivo JSON
         try:
-            with open('historial.json', 'w', encoding='utf-8') as json_file:
-                json.dump(historial_busqueda, json_file, ensure_ascii=False, indent=4)
+            with open('historial.json', 'w', encoding='utf-8') as archivo_json:
+                json.dump(historial_busqueda, archivo_json, ensure_ascii=False, indent=4)
         except Exception as e:
             print(f"Error al guardar el historial: {e}")
-            
+    
+        
     else:
         print(f"\nNo se encontró ningún producto con el SKU: {sku_a_buscar}")
         time.sleep(1)
@@ -898,9 +950,11 @@ def buscar_producto_con_hash(nombre_archivo='basedatos.csv', sku_columna='sku'):
     else:
         gestion_productos()
 
+# Elimina productos por SKU usando la tabla hash y archivo temporal
 def eliminar_producto_con_hash(nombre_archivo='basedatos.csv', sku_columna='sku'):
     
     ultimo_id = 1000
+    # Determinar el último ID en el archivo CSV
     try:
         with open(nombre_archivo, mode='r', newline='', encoding='utf-8') as archivo_csv:
             buscar = csv.DictReader(archivo_csv)
@@ -912,30 +966,29 @@ def eliminar_producto_con_hash(nombre_archivo='basedatos.csv', sku_columna='sku'
     except Exception:
         pass
 
+    # Como el ultimo id (que es agregado automaticamente), se usa para definir el tamaño de la tabla hash
+    mapa_productos = TablaHashSimple(size=ultimo_id)
     
-    mapa_productos = SimpleHashMap(size=ultimo_id)
-    
+    # Cargar productos en la tabla hash
     try:
         with open(nombre_archivo, mode='r', encoding='utf-8', newline='') as f:
-            reader = csv.DictReader(f)
-            
-            
-            fieldnames = reader.fieldnames or []
-            if not fieldnames:
+            lector = csv.DictReader(f)
+            nombres_columnas = lector.fieldnames or []
+            if not nombres_columnas:
                 print(f"Error: El archivo '{nombre_archivo}' está vacío o no tiene cabecera.")
                 time.sleep(1)
                 gestion_productos()
                 return
             
-            if sku_columna not in fieldnames:
+            if sku_columna not in nombres_columnas:
                 print(f"Error: La columna '{sku_columna}' no se encontró en '{nombre_archivo}'.")
-                print(f"Columnas disponibles: {', '.join(fieldnames)}")
+                print(f"Columnas disponibles: {', '.join(nombres_columnas)}")
                 return
             
-            for fila in reader:
-                sku_key = fila.get(sku_columna, "").strip()
-                if sku_key:
-                    mapa_productos.insert(sku_key, fila)
+            for fila in lector:
+                clave_sku = fila.get(sku_columna, "").strip()
+                if clave_sku:
+                    mapa_productos.insertar(clave_sku, fila)
                 nombre = fila.get("nombre")
         
         sku_a_buscar = input("Ingrese el SKU del producto a buscar o 0 para volver al menu: ").upper()
@@ -948,30 +1001,32 @@ def eliminar_producto_con_hash(nombre_archivo='basedatos.csv', sku_columna='sku'
             print("No se ingresó ningún SKU.")
             return
 
-        datos_producto = mapa_productos.get(sku_a_buscar.strip())
+        datos_producto = mapa_productos.obtener(sku_a_buscar.strip())
 
+        # En caso de existir el producto solicitado, mostrar sus datos y pedir confirmación para eliminarlo
         if datos_producto:
             print("\nEl producto seleccionado es el siguiente: ")
             for clave, valor in datos_producto.items():
                 print(f"{clave}: {valor}")
             borrar_volver = input("\n¿Seguro que desea eliminar este producto? Presione S para continuar o cualquier otra tecla para cancelar: ").strip().upper()
             if borrar_volver == "S":
-                temp_archivo = nombre_archivo + '.tmp'
+                archivo_temporal = nombre_archivo + '.tmp'
+                
                 try:
-                    with open(nombre_archivo, mode='r', encoding='utf-8', newline='') as f_in, open(temp_archivo, mode='w', encoding='utf-8', newline='') as f_out:
-                        reader = csv.DictReader(f_in)
-                        fieldnames = reader.fieldnames
-                        writer = csv.DictWriter(f_out, fieldnames=fieldnames)
-                        writer.writeheader()
-                        for fila in reader:
+                    with open(nombre_archivo, mode='r', encoding='utf-8', newline='') as archivo_entrada, open(archivo_temporal, mode='w', encoding='utf-8', newline='') as archivo_salida:
+                        lector = csv.DictReader(archivo_entrada)
+                        nombres_columnas = lector.fieldnames
+                        escritor = csv.DictWriter(archivo_salida, fieldnames=nombres_columnas)
+                        escritor.writeheader()
+                        for fila in lector:
                             if fila.get(sku_columna, "").strip().upper() != sku_a_buscar.strip().upper():
-                                writer.writerow(fila)
-                    os.replace(temp_archivo, nombre_archivo)
+                                escritor.writerow(fila)
+                    os.replace(archivo_temporal, nombre_archivo)
                     print(f"Producto con SKU {sku_a_buscar} eliminado exitosamente.")
                 except Exception as e:
                     print(f"Ocurrió un error al intentar eliminar el producto: {e}")
-                    if os.path.exists(temp_archivo):
-                        os.remove(temp_archivo)
+                    if os.path.exists(archivo_temporal):
+                        os.remove(archivo_temporal)
                 time.sleep(1)
                 gestion_productos()
             else:
@@ -992,4 +1047,5 @@ def eliminar_producto_con_hash(nombre_archivo='basedatos.csv', sku_columna='sku'
         print(f"Ocurrió un error inesperado: {e}")
         return
 
+# Inicia la aplicación mostrando el menú principal
 menu()
